@@ -1,0 +1,151 @@
+/* General body and layout */
+body {
+    font-family: sans-serif;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    overflow: hidden; /* Prevent body scrollbars */
+}
+
+h1 {
+    text-align: center;
+    margin: 10px 0;
+    flex-shrink: 0; /* Prevent header from shrinking */
+}
+
+.main-container {
+    display: flex;
+    flex-grow: 1; /* Allow container to fill remaining space */
+    overflow: hidden; /* Prevent scrollbars on the container */
+    height: calc(100vh - 50px); /* Adjust based on h1 height */
+}
+
+.map-controls-container {
+    flex: 3; /* Map takes up more space */
+    display: flex;
+    flex-direction: column;
+    padding: 0 10px 10px 10px;
+    box-sizing: border-box;
+    overflow: hidden; /* Prevent scrollbars */
+}
+
+.history-container {
+    flex: 2; /* History takes up less space */
+    padding: 0 10px 10px 10px;
+    box-sizing: border-box;
+    border-left: 1px solid #ccc;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto; /* Allow scrolling only for history */
+}
+
+.history-container h2 {
+    margin-top: 0;
+    position: sticky; /* Keep history title visible */
+    top: 0;
+    background-color: white;
+    padding-bottom: 5px;
+    z-index: 10;
+}
+
+
+/* Search and Map */
+.search-container {
+    padding: 10px 0;
+    text-align: center;
+    background-color: #f0f0f0;
+    border-bottom: 1px solid #ccc;
+    flex-shrink: 0; /* Prevent search bar from shrinking */
+}
+
+#searchResult {
+     margin-left: 10px;
+}
+
+#refreshHistoryButton {
+    margin-left: 15px;
+    cursor: pointer;
+}
+
+#map {
+    width: 100%;
+    flex-grow: 1; /* Allow map to fill space in its container */
+    border: 1px solid #ccc;
+    border-radius: 5px;
+}
+
+/* Marker Icons */
+.marker-icon {
+    width: 18px !important;
+    height: 18px !important;
+    border-radius: 50%;
+    border: 2px solid white;
+    box-shadow: 0 0 5px rgba(0,0,0,0.5);
+    text-align: center;
+    line-height: 14px;
+    font-weight: bold;
+    color: white;
+}
+
+.red-light { background-color: red; }
+.green-light { background-color: green; }
+
+/* Popups */
+.leaflet-popup-content-wrapper { border-radius: 5px; }
+.leaflet-popup-content { font-size: 1.0em; line-height: 1.4; } /* Slightly smaller */
+.leaflet-popup-content b { color: #333; }
+.popup-actions button {
+    margin-top: 8px;
+    margin-right: 5px;
+    padding: 4px 8px;
+    cursor: pointer;
+    border-radius: 3px;
+    border: 1px solid #aaa;
+}
+.popup-actions button:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+/* Exclusion Zone Style */
+.exclusion-zone {
+    fillColor: '#808080'; /* Grey */
+    fillOpacity: 0.3;
+    stroke: true;       /* Draw border */
+    color: '#505050';   /* Darker grey border */
+    weight: 1;          /* Border thickness */
+}
+
+/* History Log Table */
+#historyLog {
+    font-size: 0.9em;
+}
+
+#historyLog table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+}
+
+#historyLog th, #historyLog td {
+    border: 1px solid #ddd;
+    padding: 6px;
+    text-align: left;
+    word-wrap: break-word; /* Prevent long lines from breaking layout */
+}
+
+#historyLog th {
+    background-color: #f2f2f2;
+    position: sticky; /* Keep table header visible */
+    top: 30px; /* Adjust based on h2 height */
+    z-index: 9;
+}
+
+#historyLog .in-zone-true {
+    background-color: #ffdddd; /* Light red background for in-zone openings */
+}
+#historyLog .in-zone-false {
+     background-color: #ddffdd; /* Light green background for out-of-zone openings */
+}

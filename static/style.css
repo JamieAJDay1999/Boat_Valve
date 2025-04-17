@@ -1,0 +1,127 @@
+/* static/style.css */
+
+body {
+    margin: 0;
+    padding: 0;
+    font-family: sans-serif;
+    display: flex;
+    flex-direction: column;
+    height: 100vh; /* Full viewport height */
+    overflow: hidden; /* Prevent body scrollbars */
+}
+
+.controls {
+    padding: 10px;
+    text-align: center;
+    background-color: #f0f0f0;
+    border-bottom: 1px solid #ccc;
+    flex-shrink: 0; /* Prevent controls from shrinking */
+    z-index: 1001; /* Ensure controls are above map */
+}
+
+.controls button {
+    margin: 0 5px;
+    padding: 5px 10px;
+}
+
+.error-message {
+    color: red;
+    font-weight: bold;
+    margin-top: 5px;
+    padding: 5px;
+    background-color: #ffebeb;
+    border: 1px solid red;
+    display: none; /* Hidden by default */
+}
+
+.main-container {
+    display: flex;
+    flex-grow: 1; /* Allow this container to fill remaining vertical space */
+    height: calc(100vh - 50px); /* Adjust based on actual controls height if needed */
+    overflow: hidden; /* Prevent scrolling within this container */
+}
+
+.map-container {
+    flex-grow: 1; /* Map takes up available space horizontally */
+    position: relative; /* Needed for loading overlay positioning */
+    height: 100%; /* <<< Fix: Ensure map container takes full height of main-container */
+}
+
+#map {
+    height: 100%; /* Now this refers to the 100% height of .map-container */
+    width: 100%;
+}
+
+.history-container {
+    width: 300px; /* Fixed width for history panel */
+    flex-shrink: 0; /* Prevent history panel from shrinking */
+    border-left: 1px solid #ccc;
+    background-color: #f9f9f9;
+    overflow-y: auto; /* Allow scrolling within the history panel */
+    padding: 10px;
+    box-sizing: border-box; /* Include padding in width */
+    height: 100%; /* Make history container full height of main-container */
+}
+
+.history-container h2 {
+    margin-top: 0;
+    text-align: center;
+    font-size: 1.1em;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 5px;
+}
+
+#historyLog ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+#historyLog li {
+    border-bottom: 1px solid #eee;
+    padding: 8px 5px;
+    font-size: 0.9em;
+}
+
+#historyLog li.illegal strong { /* Style illegal entries */
+    color: red;
+}
+#historyLog li span { /* General span styling within list items */
+    display: block; /* Make location/time take new lines if needed */
+     font-size: 0.9em;
+     color: #555;
+}
+
+
+.loading-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(255, 255, 255, 0.8); /* Semi-transparent white */
+    z-index: 1000; /* Above map tiles, below controls */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 1.2em;
+    color: #333;
+    display: none; /* Hidden by default */
+}
+
+/* Leaflet popup customization (optional) */
+.leaflet-popup-content-wrapper {
+    border-radius: 5px;
+}
+
+.leaflet-popup-content {
+    font-size: 0.95em;
+    line-height: 1.4;
+}
+
+.leaflet-popup-content button {
+    margin-top: 5px;
+    padding: 3px 8px;
+    font-size: 0.9em;
+    cursor: pointer;
+}
