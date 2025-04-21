@@ -1,332 +1,242 @@
 /**
- * script.js
- * Handles the Leaflet map interactions, data fetching, and history display
- * for the Coastline Buffer & Boat Map application.
+ * script.js – Leaflet map, data fetching, valve toggling, history log
  */
 
-// --- Global Variables ---
+/* ------------------------------------------------------------------ */
+/*  GLOBALS                                                           */
+/* ------------------------------------------------------------------ */
 let map;
-let landLayer = L.layerGroup(); // Layer group for land polygons
-let bufferLayer = L.layerGroup(); // Layer group for buffer zones
-let boatLayer = L.layerGroup(); // Layer group for boat markers
-const boatMarkers = {}; // Store boat markers by ID for easy update: { boatId: marker }
+let landLayer   = L.layerGroup();
+let bufferLayer = L.layerGroup();
+let boatLayer   = L.layerGroup();
+const boatMarkers = {};            // { boatId: marker }
+let currentCountryCode = null;     // which dataset is shown
 
-// --- Map Initialization ---
+/* ------------------------------------------------------------------ */
+/*  DOM references                                                    */
+/* ------------------------------------------------------------------ */
+const loadingEl  = document.getElementById('loading');
+const errorEl    = document.getElementById('errorMessage');
+const historyEl  = document.getElementById('historyLog');
+
+/* ------------------------------------------------------------------ */
+/*  UI helpers                                                        */
+/* ------------------------------------------------------------------ */
+function showLoading(msg = "Loading…") {
+    loadingEl.textContent = msg;
+    loadingEl.style.display = 'flex';
+}
+function hideLoading()  { loadingEl.style.display = 'none'; }
+function displayError(msg) {
+    errorEl.textContent = msg;
+    errorEl.style.display = 'block';
+}
+function clearError()   {
+    errorEl.style.display = 'none';
+    errorEl.textContent  = '';
+}
+
+/* ------------------------------------------------------------------ */
+/*  MAP init                                                          */
+/* ------------------------------------------------------------------ */
 function initMap() {
-    console.log("Initializing Leaflet map...");
-    map = L.map('map').setView([51.505, -0.09], 5); // Default view (will be updated)
+    map = L.map('map').setView([51.5, -0.09], 5);
 
-    // Add OpenStreetMap base layer
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        attribution:
+            '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
     }).addTo(map);
 
-    // Add layer groups to the map
     landLayer.addTo(map);
     bufferLayer.addTo(map);
     boatLayer.addTo(map);
 
-    // Initial history load
     fetchAndDisplayHistory();
-    console.log("Map initialized.");
 }
 
-// --- DOM Element References ---
-const loadingIndicator = document.getElementById('loading');
-const errorMessageDiv = document.getElementById('errorMessage');
-const historyLogDiv = document.getElementById('historyLog');
-
-// --- Helper Functions ---
-
-function showLoading(message = "Loading...") {
-    if (loadingIndicator) {
-        loadingIndicator.textContent = message;
-        loadingIndicator.style.display = 'flex'; // Show the overlay
-    }
-}
-
-function hideLoading() {
-    if (loadingIndicator) {
-        loadingIndicator.style.display = 'none'; // Hide the overlay
-    }
-}
-
-function displayError(message) {
-     console.error("Displaying Error:", message);
-    if (errorMessageDiv) {
-        errorMessageDiv.textContent = message;
-        errorMessageDiv.style.display = 'block'; // Show error area
-         // Optionally hide after some time
-        // setTimeout(() => {
-        //     errorMessageDiv.style.display = 'none';
-        //     errorMessageDiv.textContent = '';
-        // }, 5000);
-    }
-}
-
-function clearError() {
-     if (errorMessageDiv) {
-        errorMessageDiv.style.display = 'none';
-        errorMessageDiv.textContent = '';
-     }
-}
-
-// --- Data Loading ---
-
-async function loadMapData(countryCode) {
-    console.log(`Loading map data for: ${countryCode}`);
-    showLoading(`Loading ${countryCode.toUpperCase()} data...`);
-    clearError(); // Clear previous errors
+/* ------------------------------------------------------------------ */
+/*  DATA fetch – map, boats                                           */
+/* ------------------------------------------------------------------ */
+async function loadMapData(code) {
+    currentCountryCode = code;
+    showLoading(`Loading ${code.toUpperCase()} data…`);
+    clearError();
 
     try {
-        const response = await fetch(`/api/mapdata/${countryCode}`);
-        if (!response.ok) {
-            const errorData = await response.json().catch(() => ({ description: response.statusText })); // Try to get JSON error, fallback to status text
-            throw new Error(`Failed to load map data: ${errorData.description || response.status}`);
+        const res = await fetch(`/api/mapdata/${code}`);
+        if (!res.ok) {
+            const j = await res.json().catch(() => ({}));
+            throw new Error(j.description || res.statusText);
         }
-        const data = await response.json();
-        console.log("Received map data:", data);
+        const data = await res.json();
 
-        // --- Handle potential backend errors ---
-        if (data.errors && data.errors.length > 0) {
-            displayError(`Server Errors: ${data.errors.join('; ')}`);
-            // Decide if you want to continue rendering partial data or stop
-        }
+        if (data.errors) displayError(data.errors.join(' ; '));
 
-        // --- Clear Existing Layers ---
+        /* ---- clear layers & caches ---- */
         landLayer.clearLayers();
         bufferLayer.clearLayers();
         boatLayer.clearLayers();
-        Object.keys(boatMarkers).forEach(key => delete boatMarkers[key]); // Clear marker cache
+        for (const k in boatMarkers) delete boatMarkers[k];
 
-
-        // --- Add Land Layer ---
+        /* ---- land ---- */
         if (data.land) {
-            try {
-                const landGeoJson = JSON.parse(data.land); // Parse GeoJSON string
-                 L.geoJSON(landGeoJson, {
-                    style: {
-                        color: "#2a4018", // Dark green
-                        weight: 1,
-                        fillColor: "#88aa77", // Lighter green fill
-                        fillOpacity: 0.5
-                    }
-                }).addTo(landLayer);
-                console.log("Land layer added.");
-            } catch (e) {
-                console.error("Error parsing or adding land GeoJSON:", e);
-                displayError("Error displaying land data.");
-            }
-        } else {
-            console.warn("No land data received.");
+            L.geoJSON(JSON.parse(data.land), {
+                style: { color:'#2a4018', weight:1,
+                         fillColor:'#88aa77', fillOpacity:0.5 }
+            }).addTo(landLayer);
         }
 
-
-        // --- Add Buffer Layer ---
+        /* ---- buffer ---- */
         if (data.buffer) {
-             try {
-                 const bufferGeoJson = JSON.parse(data.buffer); // Parse GeoJSON string
-                 L.geoJSON(bufferGeoJson, {
-                    style: {
-                        color: "#ff0000", // Red outline
-                        weight: 2,
-                        fillColor: "#ffcccc", // Light red fill
-                        fillOpacity: 0.3,
-                        dashArray: '5, 5' // Dashed line
-                    }
-                }).addTo(bufferLayer);
-                 console.log("Buffer layer added.");
-            } catch (e) {
-                 console.error("Error parsing or adding buffer GeoJSON:", e);
-                 displayError("Error displaying buffer zone data.");
-             }
-        } else {
-             console.warn("No buffer data received.");
+            L.geoJSON(JSON.parse(data.buffer), {
+                style: { color:'#ff0000', weight:2,
+                         fillColor:'#ffcccc', fillOpacity:0.3,
+                         dashArray:'5,5' }
+            }).addTo(bufferLayer);
         }
 
-
-        // --- Add Boat Markers ---
-        if (data.boats && data.boats.length > 0) {
-            data.boats.forEach(boat => {
-                const iconColor = boat.valveOpen ? 'red' : 'blue'; // Red if open, blue if closed
-                const marker = L.circleMarker([boat.lat, boat.lng], {
-                    radius: 6,
-                    fillColor: iconColor,
-                    color: "#000",
-                    weight: 1,
-                    opacity: 1,
-                    fillOpacity: 0.8
+        /* ---- boats ---- */
+        if (data.boats?.length) {
+            data.boats.forEach(b => {
+                const colour = b.valveOpen ? 'red' : 'blue';
+                const m = L.circleMarker([b.lat, b.lng], {
+                    radius:6, fillColor: colour, color:'#000',
+                    weight:1, opacity:1, fillOpacity:0.8
                 }).addTo(boatLayer);
 
-                // Store marker reference
-                boatMarkers[boat.id] = marker;
-
-                // Create popup content
-                const popupContent = `
-                    <b>${boat.name}</b> (ID: ${boat.id})<br>
-                    Lat: ${boat.lat}, Lng: ${boat.lng}<br>
-                    Valve Status: <span id="valve-status-${boat.id}">${boat.valveOpen ? 'Open' : 'Closed'}</span><br>
-                    <button onclick="toggleValve(${boat.id})">
-                        ${boat.valveOpen ? 'Close Valve' : 'Open Valve'}
+                boatMarkers[b.id] = m;
+                m.bindPopup(`
+                    <b>${b.name}</b> (ID: ${b.id})<br>
+                    Lat: ${b.lat}, Lng: ${b.lng}<br>
+                    Valve: <span id="valve-status-${b.id}">
+                        ${b.valveOpen ? 'Open' : 'Closed'}</span><br>
+                    <button onclick="toggleValve(${b.id})">
+                        ${b.valveOpen ? 'Close Valve' : 'Open Valve'}
                     </button>
-                `;
-                marker.bindPopup(popupContent);
+                `);
             });
-            console.log(`Added ${data.boats.length} boat markers.`);
-        } else {
-            console.log("No boats to display for this country.");
         }
 
+        /* ---- view ---- */
+        if (data.center && data.zoom) map.setView(data.center, data.zoom);
 
-        // --- Update Map View ---
-        if (data.center && data.zoom) {
-            map.setView(data.center, data.zoom);
-            console.log(`Map view set to center: ${data.center}, zoom: ${data.zoom}`);
-        }
-
-
-    } catch (error) {
-        console.error("Error fetching or processing map data:", error);
-        displayError(`Client Error: ${error.message}`);
+    } catch (e) {
+        console.error(e);
+        displayError(e.message);
     } finally {
         hideLoading();
     }
 }
 
-
-// --- Valve Toggling ---
-
-async function toggleValve(boatId) {
-     console.log(`Toggling valve for boat ID: ${boatId}`);
-     const marker = boatMarkers[boatId];
-     if (!marker) {
-        console.error(`Marker not found for boat ID ${boatId}`);
+/* ------------------------------------------------------------------ */
+/*  RANDOMISE boats                                                   */
+/* ------------------------------------------------------------------ */
+async function randomiseBoats() {
+    if (!currentCountryCode) {
+        displayError("Select a country first.");
         return;
-     }
-
-     showLoading(`Updating valve for boat ${boatId}...`);
-     clearError();
+    }
+    showLoading("Randomising boat locations…");
+    clearError();
 
     try {
-        const response = await fetch(`/api/valve/toggle/${boatId}`, {
-            method: 'POST',
-             headers: {
-                 'Content-Type': 'application/json'
-                 // Add any other required headers like CSRF tokens if needed later
-            }
+        const res = await fetch(`/api/boats/randomise/${currentCountryCode}`, {
+            method: 'POST'
         });
-
-        if (!response.ok) {
-            const errorData = await response.json().catch(() => ({ message: response.statusText }));
-            throw new Error(`Failed to toggle valve: ${errorData.message || response.status}`);
+        if (!res.ok) {
+            const j = await res.json().catch(() => ({}));
+            throw new Error(j.message || res.statusText);
         }
-
-        const result = await response.json();
-        console.log("Valve toggle result:", result);
-
-        // --- Update Marker Appearance and Popup ---
-        const newStatus = result.valveOpen;
-        const newColor = newStatus ? 'red' : 'blue';
-        marker.setStyle({ fillColor: newColor });
-
-        // Update popup content dynamically (more robust than replacing entire HTML string)
-        const popup = marker.getPopup();
-        if (popup) {
-             // Find the elements within the popup's content node
-             const tempDiv = document.createElement('div');
-             tempDiv.innerHTML = popup.getContent(); // Parse existing content
-
-             const statusSpan = tempDiv.querySelector(`#valve-status-${boatId}`);
-             const toggleButton = tempDiv.querySelector('button');
-
-             if (statusSpan) {
-                 statusSpan.textContent = newStatus ? 'Open' : 'Closed';
-             }
-             if (toggleButton) {
-                 toggleButton.textContent = newStatus ? 'Close Valve' : 'Open Valve';
-                 // Re-attach event listener if needed, though onclick attribute should still work
-             }
-             popup.setContent(tempDiv.innerHTML); // Set updated HTML
-             // Alternatively, regenerate the whole popup string if simpler:
-             // const newPopupContent = `...regenerated content based on result...`;
-             // popup.setContent(newPopupContent);
-        }
-
-
-        // --- Refresh History Log ---
-         // Refreshing the history log if a valve was opened might be desired
-         if (newStatus) { // If valve is now open, refresh history
-             console.log("Valve opened, refreshing history...");
-             fetchAndDisplayHistory();
-         }
-
-
-    } catch (error) {
-        console.error("Error toggling valve:", error);
-        displayError(`Valve Toggle Error: ${error.message}`);
+        await res.json();                // ignore payload – just refresh map
+        await loadMapData(currentCountryCode);
+    } catch (e) {
+        console.error(e);
+        displayError(e.message);
     } finally {
-         hideLoading();
+        hideLoading();
     }
 }
 
+/* ------------------------------------------------------------------ */
+/*  Toggle valve                                                      */
+/* ------------------------------------------------------------------ */
+async function toggleValve(id) {
+    const marker = boatMarkers[id];
+    if (!marker) return;
 
-// --- History Log ---
-
-async function fetchAndDisplayHistory() {
-    console.log("Fetching valve opening history...");
-    if (!historyLogDiv) {
-        console.error("History log element not found.");
-        return;
-    }
-    historyLogDiv.innerHTML = '<p>Loading history...</p>'; // Show loading state
+    showLoading("Updating valve…");
+    clearError();
 
     try {
-        const response = await fetch('/api/history');
-        if (!response.ok) {
-            throw new Error(`Failed to fetch history: ${response.statusText}`);
+        const res = await fetch(`/api/valve/toggle/${id}`, {method:'POST'});
+        if (!res.ok) {
+            const j = await res.json().catch(() => ({}));
+            throw new Error(j.message || res.statusText);
         }
-        const history = await response.json();
-        console.log("Received history:", history);
+        const r = await res.json();
 
-        if (history.length === 0) {
-            historyLogDiv.innerHTML = '<p>No valve opening events recorded yet.</p>';
+        const open = r.valveOpen;
+        marker.setStyle({ fillColor: open ? 'red' : 'blue' });
+
+        /* update popup content */
+        const pop = marker.getPopup();
+        const div = document.createElement('div');
+        div.innerHTML = pop.getContent();
+        div.querySelector(`#valve-status-${id}`).textContent =
+            open ? 'Open' : 'Closed';
+        div.querySelector('button').textContent =
+            open ? 'Close Valve' : 'Open Valve';
+        pop.setContent(div.innerHTML);
+
+        if (open) fetchAndDisplayHistory();
+
+    } catch (e) {
+        console.error(e);
+        displayError(e.message);
+    } finally {
+        hideLoading();
+    }
+}
+
+/* ------------------------------------------------------------------ */
+/*  History log                                                       */
+/* ------------------------------------------------------------------ */
+async function fetchAndDisplayHistory() {
+    if (!historyEl) return;
+    historyEl.innerHTML = '<p>Loading history…</p>';
+
+    try {
+        const res = await fetch('/api/history');
+        if (!res.ok) throw new Error(res.statusText);
+        const hist = await res.json();
+
+        if (!hist.length) {
+            historyEl.innerHTML = '<p>No valve openings yet.</p>';
             return;
         }
-
-        // --- Format and Display History ---
-        let historyHtml = '<ul>';
-         history.forEach(entry => {
-             // Format timestamp for readability
-             const timestamp = new Date(entry.timestamp).toLocaleString(); // Use local time format
-             const statusClass = entry.inZone ? 'illegal' : 'legal'; // CSS class for styling
-             historyHtml += `
-                <li class="${statusClass}">
-                     <strong>${entry.boatName}</strong> (ID: ${entry.boatId}) - ${entry.country.toUpperCase()}
-                    <br>
-                     Status: <strong>${entry.status}</strong>
-                     <br>
-                     Time: ${timestamp}
-                     <br>
-                     Location: ${entry.lat.toFixed(4)}, ${entry.lng.toFixed(4)}
-                     ${entry.inZone ? '<br><span style="color: red; font-weight: bold;">ALERT: DISPOSAL IN BUFFER ZONE</span>' : ''}
-                </li>
-             `;
+        let html = '<ul>';
+        hist.forEach(h => {
+            const t = new Date(h.timestamp).toLocaleString();
+            html += `
+              <li class="${h.inZone ? 'illegal' : 'legal'}">
+                <strong>${h.boatName}</strong> (ID: ${h.boatId})
+                – ${h.country.toUpperCase()}<br>
+                Status: <strong>${h.status}</strong><br>
+                Time: ${t}<br>
+                Location: ${h.lat.toFixed(4)}, ${h.lng.toFixed(4)}
+                ${h.inZone ? '<br><span style="color:red;font-weight:bold;">ALERT: IN BUFFER</span>' : ''}
+              </li>`;
         });
-        historyHtml += '</ul>';
+        html += '</ul>';
+        historyEl.innerHTML = html;
 
-        historyLogDiv.innerHTML = historyHtml;
-
-    } catch (error) {
-        console.error("Error fetching or displaying history:", error);
-        historyLogDiv.innerHTML = `<p style="color: red;">Error loading history: ${error.message}</p>`;
+    } catch (e) {
+        console.error(e);
+        historyEl.innerHTML = `<p style="color:red;">${e.message}</p>`;
     }
 }
 
-
-// --- Initial Setup ---
-// Wait for the DOM to be fully loaded before initializing the map
-document.addEventListener('DOMContentLoaded', () => {
-    initMap();
-    // Optionally load default country data on page load
-    // loadMapData('uk'); // Example: Load UK data by default
-});
+/* ------------------------------------------------------------------ */
+/*  Start                                                             */
+/* ------------------------------------------------------------------ */
+document.addEventListener('DOMContentLoaded', initMap);
